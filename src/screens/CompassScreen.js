@@ -23,22 +23,23 @@ export default function CompassScreen({ navigation }) {
   const [bob] = useState(() => new Animated.Value(0)); // given
 
   // TODO(1): Ask for location permission, get initial position, and start heading watcher
+
   useEffect(() => {
     let headingSub = null;
     let mounted = true;
 
     const askForPermission = async () => {
+      // TODO a) Ask for location permission
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setSnack("Location permission denied");
-        return;
-      }
-      
-
+    if (status !== "granted") {
+      setSnack("Permission to access location was denied");
+      return;
+    }
       // TODO b) Get One-time position and save the coordinates
-      const position = await Location.getCurrentPositionAsync({});
-      if (mounted) setCoords(position.coords);    
-
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+      if (mounted) setCoords(pos.coords);
       //* (GIVEN): Heading watcher (0..360 degrees)
       headingSub = await Location.watchHeadingAsync(({ trueHeading }) => {
         if (!mounted) return;
@@ -104,8 +105,17 @@ export default function CompassScreen({ navigation }) {
       return;
     }
     // TODO(2): push new pin {id, lat, lon, heading, ts} to state and savePins(next)
+    const newPin = {
+      id: `${Date.now()}`,
+      lat: coords.latitude,
+      lon: coords.longitude,
+      heading: heading,
+      ts: Date.now(),
+    };
+    const next = [...pins, newPin];
+    setPins(next);
+    await savePins(next);
     setSnack("TODO: save pin");
-
   };
 
   const copyCoords = async () => {
@@ -114,7 +124,9 @@ export default function CompassScreen({ navigation }) {
       return;
     }
     // TODO(3): Clipboard.setStringAsync("lat, lon") then snackbar
-    
+    const coordString = `${fmt(coords.latitude)}, ${fmt(coords.longitude)}`;
+    await Clipboard.setStringAsync(coordString);
+    setSnack("TODO: copy coords");
   };
 
   const shareCoords = async () => {
@@ -123,6 +135,14 @@ export default function CompassScreen({ navigation }) {
       return;
     }
     // TODO(4): Share.share with message including coords + heading + cardinal
+    const coordString = `${fmt(coords.latitude)}, ${fmt(coords.longitude)}`;
+    const headingString = heading != null ? `${Math.round(heading)}° (${toCardinal(heading)})` : "—";
+    const message = `My current location:\nCoordinates: ${coordString}\nHeading: ${headingString}\nTimestamp: ${nowISO()}`;
+    try {
+      await Share.share({ message });
+    } catch (e) {
+      console.warn("Failed to share coords:", e);
+    }
   };
 
   // Make DARK end point opposite heading: add 180°
